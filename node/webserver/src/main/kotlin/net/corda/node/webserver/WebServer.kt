@@ -28,24 +28,16 @@ import org.glassfish.jersey.servlet.ServletContainer
 import java.lang.reflect.InvocationTargetException
 import java.net.InetAddress
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.*
 import javax.servlet.DispatcherType
 
-class WebServer(val nodeInfo: NodeInfo, val configuration: Config) {
+class WebServer(val config: FullNodeConfiguration) {
     private companion object {
         val log = loggerFor<WebServer>()
     }
 
-    private val address = HostAndPort.fromString(configuration.getString("webAddress"))
-    private val sslConfig = object : NodeSSLConfiguration {
-        override val keyStorePassword: String
-            get() = throw UnsupportedOperationException()
-        override val trustStorePassword: String
-            get() = throw UnsupportedOperationException()
-        override val certificatesPath: Path
-            get() = throw UnsupportedOperationException()
-
-    }
+    val address = config.webAddress
 
     fun start() {
         initWebServer(connectLocalRpcAsNodeUser())
@@ -56,7 +48,7 @@ class WebServer(val nodeInfo: NodeInfo, val configuration: Config) {
         val handlerCollection = HandlerCollection()
 
         // Export JMX monitoring statistics and data over REST/JSON.
-        if (configuration.getString("exportJMXto").split(',').contains("http")) {
+        if (config.exportJMXto.split(',').contains("http")) {
             val classpath = System.getProperty("java.class.path").split(System.getProperty("path.separator"))
             val warpath = classpath.firstOrNull { it.contains("jolokia-agent-war-2") && it.endsWith(".war") }
             if (warpath != null) {
@@ -76,16 +68,16 @@ class WebServer(val nodeInfo: NodeInfo, val configuration: Config) {
 
         val server = Server()
 
-        val connector = if (configuration.getBoolean("useHTTPS")) {
+        val connector = if (config.useHTTPS) {
             val httpsConfiguration = HttpConfiguration()
             httpsConfiguration.outputBufferSize = 32768
             httpsConfiguration.addCustomizer(SecureRequestCustomizer())
             val sslContextFactory = SslContextFactory()
-            sslContextFactory.keyStorePath = sslConfig.keyStorePath.toString()
-            sslContextFactory.setKeyStorePassword(sslConfig.keyStorePassword)
-            sslContextFactory.setKeyManagerPassword(sslConfig.keyStorePassword)
-            sslContextFactory.setTrustStorePath(sslConfig.trustStorePath.toString())
-            sslContextFactory.setTrustStorePassword(sslConfig.trustStorePassword)
+            sslContextFactory.keyStorePath = config.keyStorePath.toString()
+            sslContextFactory.setKeyStorePassword(config.keyStorePassword)
+            sslContextFactory.setKeyManagerPassword(config.keyStorePassword)
+            sslContextFactory.setTrustStorePath(config.trustStorePath.toString())
+            sslContextFactory.setTrustStorePassword(config.trustStorePassword)
             sslContextFactory.setExcludeProtocols("SSL.*", "TLSv1", "TLSv1.1")
             sslContextFactory.setIncludeProtocols("TLSv1.2")
             sslContextFactory.setExcludeCipherSuites(".*NULL.*", ".*RC4.*", ".*MD5.*", ".*DES.*", ".*DSS.*")
@@ -97,6 +89,7 @@ class WebServer(val nodeInfo: NodeInfo, val configuration: Config) {
             val httpConfiguration = HttpConfiguration()
             httpConfiguration.outputBufferSize = 32768
             val httpConnector = ServerConnector(server, HttpConnectionFactory(httpConfiguration))
+            println("Starting webserver on address $address")
             httpConnector.port = address.port
             httpConnector
         }
@@ -164,7 +157,7 @@ class WebServer(val nodeInfo: NodeInfo, val configuration: Config) {
     }
 
     private fun connectLocalRpcAsNodeUser(): CordaRPCOps {
-        val client = CordaRPCClient(HostAndPort.fromString(nodeInfo.address.toString()), sslConfig)
+        val client = CordaRPCClient(config.artemisAddress, config)
         client.start(ArtemisMessagingComponent.NODE_USER, ArtemisMessagingComponent.NODE_USER)
         return client.proxy()
     }
