@@ -1,7 +1,6 @@
-package net.corda.node.api
+package net.corda.node.webserver.api
 
 import net.corda.core.contracts.*
-import net.corda.node.api.StatesQuery
 import net.corda.core.crypto.DigitalSignature
 import net.corda.core.crypto.SecureHash
 import net.corda.core.node.NodeInfo

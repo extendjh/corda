@@ -14,6 +14,8 @@ import net.corda.node.services.messaging.CordaRPCClient
 import net.corda.node.servlets.AttachmentDownloadServlet
 import net.corda.node.servlets.DataUploadServlet
 import net.corda.node.servlets.ResponseFilter
+import net.corda.node.webserver.api.APIServer
+import net.corda.node.webserver.internal.APIServerImpl
 import org.eclipse.jetty.server.*
 import org.eclipse.jetty.server.handler.HandlerCollection
 import org.eclipse.jetty.servlet.DefaultServlet
@@ -114,10 +116,11 @@ class WebServer(val config: FullNodeConfiguration) {
             // TODO: Remove this at cleanup time
             //resourceConfig.register(Config(services))
             resourceConfig.register(ResponseFilter())
-            // TODO: Move the API out of node and to here.
-            //resourceConfig.register(api)
+            resourceConfig.register(APIServerImpl(localRpc))
 
             val webAPIsOnClasspath = pluginRegistries.flatMap { x -> x.webApis }
+            println("NUM PLUGINS: ${pluginRegistries.size}")
+            println("NUM WEBAPIS: ${webAPIsOnClasspath.size}")
             for (webapi in webAPIsOnClasspath) {
                 log.info("Add plugin web API from attachment $webapi")
                 val customAPI = try {

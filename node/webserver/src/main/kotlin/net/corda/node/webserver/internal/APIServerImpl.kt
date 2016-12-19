@@ -1,4 +1,4 @@
-package net.corda.node.internal
+package net.corda.node.webserver.internal
 
 import com.google.common.util.concurrent.ListenableFuture
 import net.corda.core.contracts.ContractState
@@ -7,48 +7,55 @@ import net.corda.core.contracts.StateRef
 import net.corda.core.contracts.TransactionState
 import net.corda.core.crypto.DigitalSignature
 import net.corda.core.crypto.SecureHash
+import net.corda.core.messaging.CordaRPCOps
 import net.corda.core.node.services.linearHeadsOfType
 import net.corda.core.serialization.SerializedBytes
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.WireTransaction
-import net.corda.node.api.*
+import net.corda.node.internal.AbstractNode
+import net.corda.node.webserver.api.*
 import java.time.LocalDateTime
 import javax.ws.rs.core.Response
 
-class APIServerImpl(val node: AbstractNode) : APIServer {
+class APIServerImpl(val rpcOps: CordaRPCOps) : APIServer {
 
-    override fun serverTime(): LocalDateTime = LocalDateTime.now(node.services.clock)
+    override fun serverTime(): LocalDateTime =
+            throw UnsupportedOperationException()//LocalDateTime.now(node.services.clock)
 
     override fun status(): Response {
-        return if (node.started) {
-            Response.ok("started").build()
-        } else {
-            Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("not started").build()
-        }
+        throw UnsupportedOperationException()
+        //return if (node.started) {
+        //    Response.ok("started").build()
+        //} else {
+        //    Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("not started").build()
+        //}
     }
 
-    override fun info() = node.services.myInfo
+    override fun info() =
+            throw UnsupportedOperationException()// node.services.myInfo
 
     override fun queryStates(query: StatesQuery): List<StateRef> {
+        throw UnsupportedOperationException()
         // We're going to hard code two options here for now and assume that all LinearStates are deals
         // Would like to maybe move to a model where we take something like a JEXL string, although don't want to develop
         // something we can't later implement against a persistent store (i.e. need to pick / build a query engine)
-        if (query is StatesQuery.Selection) {
-            if (query.criteria is StatesQuery.Criteria.AllDeals) {
-                val states = node.services.vaultService.linearHeads
-                return states.values.map { it.ref }
-            } else if (query.criteria is StatesQuery.Criteria.Deal) {
-                val states = node.services.vaultService.linearHeadsOfType<DealState>().filterValues {
-                    it.state.data.ref == query.criteria.ref
-                }
-                return states.values.map { it.ref }
-            }
-        }
-        return emptyList()
+        //if (query is StatesQuery.Selection) {
+        //    if (query.criteria is StatesQuery.Criteria.AllDeals) {
+        //        val states = node.services.vaultService.linearHeads
+        //        return states.values.map { it.ref }
+        //    } else if (query.criteria is StatesQuery.Criteria.Deal) {
+        //        val states = node.services.vaultService.linearHeadsOfType<DealState>().filterValues {
+        //            it.state.data.ref == query.criteria.ref
+        //        }
+        //        return states.values.map { it.ref }
+        //    }
+        //}
+        //return emptyList()
     }
 
     override fun fetchStates(states: List<StateRef>): Map<StateRef, TransactionState<ContractState>?> {
-        return node.services.vaultService.statesForRefs(states)
+        throw UnsupportedOperationException()
+        //return node.services.vaultService.statesForRefs(states)
     }
 
     override fun fetchTransactions(txs: List<SecureHash>): Map<SecureHash, SignedTransaction?> {
@@ -72,13 +79,14 @@ class APIServerImpl(val node: AbstractNode) : APIServer {
     }
 
     private fun invokeFlowAsync(type: FlowRef, args: Map<String, Any?>): ListenableFuture<out Any?> {
-        if (type is FlowClassRef) {
-            val flowLogicRef = node.services.flowLogicRefFactory.createKotlin(type.className, args)
-            val flowInstance = node.services.flowLogicRefFactory.toFlowLogic(flowLogicRef)
-            return node.services.startFlow(flowInstance).resultFuture
-        } else {
-            throw UnsupportedOperationException("Unsupported FlowRef type: $type")
-        }
+        throw UnsupportedOperationException()
+        //if (type is FlowClassRef) {
+        //    val flowLogicRef = node.services.flowLogicRefFactory.createKotlin(type.className, args)
+        //    val flowInstance = node.services.flowLogicRefFactory.toFlowLogic(flowLogicRef)
+        //    return node.services.startFlow(flowInstance).resultFuture
+        //} else {
+        //    throw UnsupportedOperationException("Unsupported FlowRef type: $type")
+        //}
     }
 
     override fun fetchFlowsRequiringAttention(query: StatesQuery): Map<StateRef, FlowRequiringAttention> {
