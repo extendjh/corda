@@ -97,14 +97,10 @@ class WebServer(val config: FullNodeConfiguration) {
     private fun buildServletContextHandler(localRpc: CordaRPCOps): ServletContextHandler {
         return ServletContextHandler().apply {
             contextPath = "/"
-            //setAttribute("node", this@Node)
             addServlet(DataUploadServlet::class.java, "/upload/*")
             addServlet(AttachmentDownloadServlet::class.java, "/attachments/*")
 
             val resourceConfig = ResourceConfig()
-            // Add your API provider classes (annotated for JAX-RS) here
-            // TODO: Remove this at cleanup time
-            //resourceConfig.register(Config(services))
             resourceConfig.register(ResponseFilter())
             resourceConfig.register(APIServerImpl(localRpc))
 
@@ -140,12 +136,6 @@ class WebServer(val config: FullNodeConfiguration) {
             val jerseyServlet = ServletHolder(container)
             addServlet(jerseyServlet, "/api/*")
             jerseyServlet.initOrder = 0 // Initialise at server start
-
-            // Wrap all API calls in a database transaction.
-            // TODO: Remove this when cleaning up
-            //val filterHolder = FilterHolder(Node.DatabaseTransactionFilter(database))
-            //addFilter(filterHolder, "/api/*", EnumSet.of(DispatcherType.REQUEST))
-            //addFilter(filterHolder, "/upload/*", EnumSet.of(DispatcherType.REQUEST))
         }
     }
 
