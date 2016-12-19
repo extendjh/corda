@@ -2,25 +2,24 @@ package net.corda.node.webserver.internal
 
 import com.google.common.util.concurrent.ListenableFuture
 import net.corda.core.contracts.ContractState
-import net.corda.core.contracts.DealState
 import net.corda.core.contracts.StateRef
 import net.corda.core.contracts.TransactionState
 import net.corda.core.crypto.DigitalSignature
 import net.corda.core.crypto.SecureHash
 import net.corda.core.messaging.CordaRPCOps
-import net.corda.core.node.services.linearHeadsOfType
 import net.corda.core.serialization.SerializedBytes
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.WireTransaction
-import net.corda.node.internal.AbstractNode
 import net.corda.node.webserver.api.*
 import java.time.LocalDateTime
+import java.time.ZoneId
 import javax.ws.rs.core.Response
 
 class APIServerImpl(val rpcOps: CordaRPCOps) : APIServer {
 
-    override fun serverTime(): LocalDateTime =
-            throw UnsupportedOperationException()//LocalDateTime.now(node.services.clock)
+    override fun serverTime(): LocalDateTime {
+        return LocalDateTime.ofInstant(rpcOps.currentNodeTime(), ZoneId.of("UTC"))
+    }
 
     override fun status(): Response {
         throw UnsupportedOperationException()

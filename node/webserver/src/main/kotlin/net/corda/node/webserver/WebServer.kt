@@ -1,25 +1,18 @@
 package net.corda.node.webserver
 
-import com.google.common.net.HostAndPort
-import com.typesafe.config.Config
 import net.corda.core.messaging.CordaRPCOps
 import net.corda.core.node.CordaPluginRegistry
-import net.corda.core.node.NodeInfo
 import net.corda.core.utilities.loggerFor
-import net.corda.node.internal.Node
 import net.corda.node.services.config.FullNodeConfiguration
-import net.corda.node.services.config.NodeSSLConfiguration
 import net.corda.node.services.messaging.ArtemisMessagingComponent
 import net.corda.node.services.messaging.CordaRPCClient
 import net.corda.node.servlets.AttachmentDownloadServlet
 import net.corda.node.servlets.DataUploadServlet
 import net.corda.node.servlets.ResponseFilter
-import net.corda.node.webserver.api.APIServer
 import net.corda.node.webserver.internal.APIServerImpl
 import org.eclipse.jetty.server.*
 import org.eclipse.jetty.server.handler.HandlerCollection
 import org.eclipse.jetty.servlet.DefaultServlet
-import org.eclipse.jetty.servlet.FilterHolder
 import org.eclipse.jetty.servlet.ServletContextHandler
 import org.eclipse.jetty.servlet.ServletHolder
 import org.eclipse.jetty.util.ssl.SslContextFactory
@@ -29,10 +22,7 @@ import org.glassfish.jersey.server.ServerProperties
 import org.glassfish.jersey.servlet.ServletContainer
 import java.lang.reflect.InvocationTargetException
 import java.net.InetAddress
-import java.nio.file.Path
-import java.nio.file.Paths
 import java.util.*
-import javax.servlet.DispatcherType
 
 class WebServer(val config: FullNodeConfiguration) {
     private companion object {
@@ -160,6 +150,7 @@ class WebServer(val config: FullNodeConfiguration) {
     }
 
     private fun connectLocalRpcAsNodeUser(): CordaRPCOps {
+        log.info("Connecting to node at ${config.artemisAddress} as node user")
         val client = CordaRPCClient(config.artemisAddress, config)
         client.start(ArtemisMessagingComponent.NODE_USER, ArtemisMessagingComponent.NODE_USER)
         return client.proxy()
