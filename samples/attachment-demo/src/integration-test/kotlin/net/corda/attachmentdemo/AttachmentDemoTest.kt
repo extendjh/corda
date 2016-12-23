@@ -6,18 +6,18 @@ import net.corda.core.node.services.ServiceInfo
 import net.corda.node.driver.driver
 import net.corda.node.services.User
 import net.corda.node.services.transactions.SimpleNotaryService
+import net.corda.node.utilities.getHostAndPort
 import org.junit.Test
 import java.util.concurrent.CompletableFuture
 
 class AttachmentDemoTest {
     @Test fun `runs attachment demo`() {
         driver(dsl = {
-            val demoUser = listOf(User("demo", "demo", setOf("StartFlow.net.corda.flows.FinalityFlow")))
-            val (nodeA, nodeB) = Futures.allAsList(
-                startNode("Bank A", rpcUsers = demoUser),
-                startNode("Bank B", rpcUsers = demoUser),
-                startNode("Notary", setOf(ServiceInfo(SimpleNotaryService.Companion.type)))
-            ).getOrThrow()
+            startNode("Notary", setOf(ServiceInfo(SimpleNotaryService.Companion.type)))
+            val nodeA = startNode("Bank A").getOrThrow()
+            val nodeB = startNode("Bank B").getOrThrow()
+            val nodeAApiAddr = startWebserver(nodeA).getOrThrow()
+            val nodeBApiAddr = startWebserver(nodeB).getOrThrow()
 
             val senderThread = CompletableFuture.runAsync {
                 nodeA.rpcClientToNode().use(demoUser[0].username, demoUser[0].password) {

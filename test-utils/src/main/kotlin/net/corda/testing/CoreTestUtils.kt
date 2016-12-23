@@ -174,3 +174,5 @@ data class TestNodeConfiguration(
         override val emailAddress: String = "",
         override val exportJMXto: String = "",
         override val devMode: Boolean = true) : NodeConfiguration
+
+fun Config.getHostAndPort(name: String) = HostAndPort.fromString(getString(name))

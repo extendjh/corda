@@ -29,6 +29,7 @@ import net.corda.node.services.network.NetworkMapService
 import net.corda.node.services.transactions.RaftValidatingNotaryService
 import net.corda.node.utilities.JsonSupport
 import net.corda.node.utilities.ServiceIdentityGenerator
+import net.corda.node.utilities.getHostAndPort
 import org.slf4j.Logger
 import java.io.File
 import java.net.*
@@ -87,6 +88,13 @@ interface DriverDSLExposedInterface {
             clusterSize: Int = 3,
             type: ServiceType = RaftValidatingNotaryService.type,
             rpcUsers: List<User> = emptyList()): Future<Pair<Party, List<NodeHandle>>>
+
+    /**
+     * Starts a web server for a node
+     *
+     * @param config The configuration for the node that this webserver connects to via RPC.
+     */
+    fun startWebserver(config: NodeInfoAndConfig): Future<HostAndPort>
 
     fun waitForAllNodesToFinish()
 }
@@ -408,6 +416,18 @@ open class DriverDSL(
         }
     }
 
+    override fun startWebserver(config: NodeInfoAndConfig): Future<HostAndPort> {
+        val debugPort = if (isDebug) debugPortAllocation.nextPort() else null
+        val webserverAddress = config.config.getHostAndPort("webAddress")!!
+        val baseDir = Paths.get(config.config.getString("basedir")!!)
+        val artemisAddress = config.config.getHostAndPort("artemisAddress")!!
+
+        return future {
+            registerProcess(DriverDSL.startWebserver(webserverAddress, baseDir, artemisAddress, debugPort))
+            webserverAddress
+        }
+    }
+
     override fun start() {
         startNetworkMapService()
     }
@@ -485,6 +505,33 @@ open class DriverDSL(
                     // TODO There is a race condition here. Even though the messaging address is bound it may be the case that
                     // the handlers for the advertised services are not yet registered. Needs rethinking.
             ).map { process }
+        }
+
+        private fun startWebserver(webAddress: HostAndPort, nodeDir: Path, artemisAddress: HostAndPort, debugPort: Int?): Process {
+            val className = "net.corda.node.webserver.MainKt" // cannot directly get class for this, so just use string
+            val separator = System.getProperty("file.separator")
+            val classpath = System.getProperty("java.class.path")
+            val path = System.getProperty("java.home") + separator + "bin" + separator + "java"
+
+            val debugPortArg = if (debugPort != null)
+                listOf("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debugPort")
+            else
+                emptyList()
+
+            val javaArgs = listOf(path) +
+                    listOf("-Dname=node-$artemisAddress-webserver") + debugPortArg +
+                    listOf(
+                            "-cp", classpath, className,
+                            "--base-directory", nodeDir.toString(),
+                            "--web-address", webAddress.toString())
+            val builder = ProcessBuilder(javaArgs)
+            builder.redirectError(Paths.get("error.$className.log").toFile())
+            builder.inheritIO()
+            builder.directory(nodeDir.toFile())
+            val process = builder.start()
+            addressMustBeBound(webAddress)
+
+            return process
         }
     }
 }
