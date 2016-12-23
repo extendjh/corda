@@ -8,7 +8,6 @@ import java.io.File
 import java.nio.file.Paths
 import kotlin.system.exitProcess
 
-// TODO:
 fun main(args: Array<String>) {
     // TODO: Print basic webserver info
     val parser = OptionParser()
