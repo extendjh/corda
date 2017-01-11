@@ -418,13 +418,10 @@ open class DriverDSL(
 
     override fun startWebserver(handle: NodeHandle): Future<HostAndPort> {
         val debugPort = if (isDebug) debugPortAllocation.nextPort() else null
-        val webserverAddress = handle.configuration.webAddress
-        val baseDir = handle.configuration.baseDirectory
-        val artemisAddress = handle.configuration.artemisAddress
 
         return future {
-            registerProcess(DriverDSL.startWebserver(webserverAddress, baseDir, artemisAddress, debugPort))
-            webserverAddress
+            registerProcess(DriverDSL.startWebserver(executorService, handle.configuration, debugPort))
+            handle.configuration.webAddress
         }
     }
 
@@ -500,14 +497,15 @@ open class DriverDSL(
             builder.inheritIO()
             builder.directory(nodeConf.baseDirectory.toFile())
             val process = builder.start()
-            return Futures.allAsList(
-                    addressMustBeBound(executorService, nodeConf.artemisAddress),
-                    // TODO There is a race condition here. Even though the messaging address is bound it may be the case that
-                    // the handlers for the advertised services are not yet registered. Needs rethinking.
-            ).map { process }
+            // TODO There is a race condition here. Even though the messaging address is bound it may be the case that
+            // the handlers for the advertised services are not yet registered. Needs rethinking.
+            return addressMustBeBound(executorService, nodeConf.artemisAddress).map { process }
         }
 
-        private fun startWebserver(webAddress: HostAndPort, nodeDir: Path, artemisAddress: HostAndPort, debugPort: Int?): Process {
+        private fun startWebserver(
+                executorService: ScheduledExecutorService,
+                nodeConf: FullNodeConfiguration,
+                debugPort: Int?): ListenableFuture<Process> {
             val className = "net.corda.node.webserver.MainKt" // cannot directly get class for this, so just use string
             val separator = System.getProperty("file.separator")
             val classpath = System.getProperty("java.class.path")
@@ -519,19 +517,17 @@ open class DriverDSL(
                 emptyList()
 
             val javaArgs = listOf(path) +
-                    listOf("-Dname=node-$artemisAddress-webserver") + debugPortArg +
+                    listOf("-Dname=node-${nodeConf.artemisAddress}-webserver") + debugPortArg +
                     listOf(
                             "-cp", classpath, className,
-                            "--base-directory", nodeDir.toString(),
-                            "--web-address", webAddress.toString())
+                            "--base-directory", nodeConf.baseDirectory.toString(),
+                            "--web-address", nodeConf.webAddress.toString())
             val builder = ProcessBuilder(javaArgs)
             builder.redirectError(Paths.get("error.$className.log").toFile())
             builder.inheritIO()
-            builder.directory(nodeDir.toFile())
+            builder.directory(nodeConf.baseDirectory.toFile())
             val process = builder.start()
-            addressMustBeBound(webAddress)
-
-            return process
+            return addressMustBeBound(executorService, nodeConf.webAddress).map { process }
         }
     }
 }

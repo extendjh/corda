@@ -38,6 +38,7 @@ fun main(args: Array<String>) {
     val config = ConfigHelper.loadConfig(baseDirectoryPath)
 
     println("Starting server")
-    val server = WebServer(FullNodeConfiguration(config)).start()
+    val nodeConf = FullNodeConfiguration(baseDirectoryPath, config)
+    val server = WebServer(nodeConf).start()
     println("Exiting")
 }
