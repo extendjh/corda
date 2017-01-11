@@ -2,8 +2,6 @@
 
 package net.corda.node.driver
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.module.SimpleModule
 import com.google.common.net.HostAndPort
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -12,7 +10,6 @@ import com.typesafe.config.Config
 import com.typesafe.config.ConfigRenderOptions
 import net.corda.core.*
 import net.corda.core.crypto.Party
-import net.corda.core.messaging.CordaRPCOps
 import net.corda.core.node.NodeInfo
 import net.corda.core.node.services.ServiceInfo
 import net.corda.core.node.services.ServiceType
@@ -22,22 +19,21 @@ import net.corda.node.services.config.ConfigHelper
 import net.corda.node.services.config.FullNodeConfiguration
 import net.corda.node.services.config.NodeSSLConfiguration
 import net.corda.node.services.messaging.ArtemisMessagingComponent
-import net.corda.node.services.messaging.ArtemisMessagingServer
 import net.corda.node.services.messaging.CordaRPCClient
 import net.corda.node.services.messaging.NodeMessagingClient
 import net.corda.node.services.network.NetworkMapService
 import net.corda.node.services.transactions.RaftValidatingNotaryService
-import net.corda.node.utilities.JsonSupport
 import net.corda.node.utilities.ServiceIdentityGenerator
-import net.corda.node.utilities.getHostAndPort
 import org.slf4j.Logger
 import java.io.File
 import java.net.*
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset.UTC
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.*
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -92,9 +88,9 @@ interface DriverDSLExposedInterface {
     /**
      * Starts a web server for a node
      *
-     * @param config The configuration for the node that this webserver connects to via RPC.
+     * @param handle The handle for the node that this webserver connects to via RPC.
      */
-    fun startWebserver(config: NodeInfoAndConfig): Future<HostAndPort>
+    fun startWebserver(handle: NodeHandle): Future<HostAndPort>
 
     fun waitForAllNodesToFinish()
 }
@@ -420,11 +416,11 @@ open class DriverDSL(
         }
     }
 
-    override fun startWebserver(config: NodeInfoAndConfig): Future<HostAndPort> {
+    override fun startWebserver(handle: NodeHandle): Future<HostAndPort> {
         val debugPort = if (isDebug) debugPortAllocation.nextPort() else null
-        val webserverAddress = config.config.getHostAndPort("webAddress")!!
-        val baseDir = Paths.get(config.config.getString("basedir")!!)
-        val artemisAddress = config.config.getHostAndPort("artemisAddress")!!
+        val webserverAddress = handle.configuration.webAddress
+        val baseDir = handle.configuration.baseDirectory
+        val artemisAddress = handle.configuration.artemisAddress
 
         return future {
             registerProcess(DriverDSL.startWebserver(webserverAddress, baseDir, artemisAddress, debugPort))
