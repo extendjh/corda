@@ -28,11 +28,11 @@ class DriverTests {
         }
 
         fun webserverMustBeUp(webserverAddr: HostAndPort) {
-            addressMustBeBound(webserverAddr)
+            addressMustBeBound(executorService, webserverAddr)
         }
 
         fun webserverMustBeDown(webserverAddr: HostAndPort) {
-            addressMustNotBeBound(webserverAddr)
+            addressMustNotBeBound(executorService, webserverAddr)
         }
     }
 
