@@ -32,7 +32,10 @@ class WebServer(val config: FullNodeConfiguration) {
     val address = config.webAddress
 
     fun start() {
-        initWebServer(connectLocalRpcAsNodeUser())
+        val server = initWebServer(connectLocalRpcAsNodeUser())
+        while(server.isRunning) {
+            Thread.sleep(100) // TODO: Redesign
+        }
     }
 
     private fun initWebServer(localRpc: CordaRPCOps): Server {
@@ -90,6 +93,7 @@ class WebServer(val config: FullNodeConfiguration) {
         server.handler = handlerCollection
         //runOnStop += Runnable { server.stop() }
         server.start()
+        println("Server started")
         log.info("Embedded web server is listening on", "http://${InetAddress.getLocalHost().hostAddress}:${connector.port}/")
         return server
     }
