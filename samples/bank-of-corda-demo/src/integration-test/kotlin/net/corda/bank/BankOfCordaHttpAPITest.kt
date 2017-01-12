@@ -20,7 +20,6 @@ class BankOfCordaHttpAPITest {
             ).getOrThrow()
             val nodeBankOfCordaApiAddr = startWebserver(nodeBankOfCorda).getOrThrow()
             assert(BankOfCordaClientApi(nodeBankOfCordaApiAddr).requestWebIssue(IssueRequestParams(1000, "USD", "BigCorporation", "1", "BankOfCorda")))
-            //waitForAllNodesToFinish()
         }, isDebug = true)
     }
 }

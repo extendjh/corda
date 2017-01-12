@@ -340,7 +340,7 @@ open class DriverDSL(
             val rpcOps = client.proxy(timeout = Duration.of(15, ChronoUnit.SECONDS))
             return rpcOps.nodeIdentity()
         } catch(e: Exception) {
-            log.error("Retrying query node info at $nodeAddress")
+            log.debug("Retrying query node info at $nodeAddress")
             retries++
         }
 
@@ -435,7 +435,7 @@ open class DriverDSL(
                     return configuration.webAddress
                 }
             } catch(e: ConnectException) {
-                log.error("Retrying webserver info at ${ configuration.webAddress}")
+                log.debug("Retrying webserver info at ${ configuration.webAddress}")
             }
         }
 
