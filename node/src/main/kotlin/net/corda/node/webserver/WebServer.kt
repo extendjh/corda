@@ -106,7 +106,7 @@ class WebServer(val config: FullNodeConfiguration) {
             addServlet(AttachmentDownloadServlet::class.java, "/attachments/*")
 
             val resourceConfig = ResourceConfig()
-            resourceConfig.register(ObjectMapperConfig(services))
+            resourceConfig.register(ObjectMapperConfig(localRpc))
             resourceConfig.register(ResponseFilter())
             resourceConfig.register(APIServerImpl(localRpc))
 
