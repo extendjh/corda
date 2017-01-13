@@ -37,7 +37,6 @@ object JsonSupport {
     val cordaModule : Module by lazy {
         SimpleModule("core").apply {
             addSerializer(Party::class.java, PartySerializer)
-            addDeserializer(Party::class.java, PartyDeserializer)
             addSerializer(BigDecimal::class.java, ToStringSerializer)
             addDeserializer(BigDecimal::class.java, NumberDeserializers.BigDecimalDeserializer())
             addSerializer(SecureHash::class.java, SecureHashSerializer)
@@ -61,8 +60,8 @@ object JsonSupport {
         }
     }
 
-    fun createDefaultMapper(identities: IdentityService): ObjectMapper =
-            ServiceHubObjectMapper(identities).apply {
+    fun createDefaultMapper(): ObjectMapper =
+            ObjectMapper().apply {
                 enable(SerializationFeature.INDENT_OUTPUT)
                 enable(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
                 enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
@@ -71,8 +70,6 @@ object JsonSupport {
                 registerModule(cordaModule)
                 registerModule(KotlinModule())
             }
-
-    class ServiceHubObjectMapper(val identities: IdentityService) : ObjectMapper()
 
     object ToStringSerializer : JsonSerializer<Any>() {
         override fun serialize(obj: Any, generator: JsonGenerator, provider: SerializerProvider) {
@@ -100,17 +97,6 @@ object JsonSupport {
     object PartySerializer : JsonSerializer<Party>() {
         override fun serialize(obj: Party, generator: JsonGenerator, provider: SerializerProvider) {
             generator.writeString(obj.name)
-        }
-    }
-
-    object PartyDeserializer : JsonDeserializer<Party>() {
-        override fun deserialize(parser: JsonParser, context: DeserializationContext): Party {
-            if (parser.currentToken == JsonToken.FIELD_NAME) {
-                parser.nextToken()
-            }
-            val mapper = parser.codec as ServiceHubObjectMapper
-            // TODO this needs to use some industry identifier(s) not just these human readable names
-            return mapper.identities.partyFromName(parser.text) ?: throw JsonParseException(parser, "Could not find a Party with name: ${parser.text}")
         }
     }
 
