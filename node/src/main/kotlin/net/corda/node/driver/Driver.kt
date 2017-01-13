@@ -96,7 +96,7 @@ interface DriverDSLExposedInterface {
      *
      * @param handle The handle for the node that this webserver connects to via RPC.
      */
-    fun startWebserver(handle: NodeHandle): Future<HostAndPort>
+    fun startWebserver(handle: NodeHandle): ListenableFuture<HostAndPort>
 
     fun waitForAllNodesToFinish()
 }
@@ -443,7 +443,7 @@ open class DriverDSL(
         return null
     }
 
-    override fun startWebserver(handle: NodeHandle): Future<HostAndPort> {
+    override fun startWebserver(handle: NodeHandle): ListenableFuture<HostAndPort> {
         val debugPort = if (isDebug) debugPortAllocation.nextPort() else null
 
         return future {
