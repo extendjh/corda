@@ -156,6 +156,16 @@ abstract class FlowLogic<out T> {
     abstract fun call(): T
 
     /**
+     *
+     */
+    @Throws(IllegalFlowArgumentException::class)
+    protected fun checkArgument(value: Boolean, lazyMessage: () -> Any): Unit {
+        if (!value) {
+            throw IllegalFlowArgumentException(lazyMessage().toString())
+        }
+    }
+
+    /**
      * Returns a pair of the current progress step, as a string, and an observable of stringified changes to the
      * [progressTracker].
      *
@@ -203,3 +213,10 @@ abstract class FlowLogic<out T> {
 open class PropagatedException @JvmOverloads constructor(
         message: String? = null,
         cause: Throwable? = null) : Exception(message, cause)
+
+/**
+ *
+ */
+open class IllegalFlowArgumentException @JvmOverloads constructor(
+        message : String? = null,
+        cause : Throwable? = null) : PropagatedException(message, cause)

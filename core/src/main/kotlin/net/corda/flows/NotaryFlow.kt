@@ -26,9 +26,7 @@ object NotaryFlow {
         constructor(stx: SignedTransaction) : this(stx, Client.tracker())
 
         companion object {
-
             object REQUESTING : ProgressTracker.Step("Requesting signature by Notary service")
-
             object VALIDATING : ProgressTracker.Step("Validating response from Notary service")
 
             fun tracker() = ProgressTracker(REQUESTING, VALIDATING)

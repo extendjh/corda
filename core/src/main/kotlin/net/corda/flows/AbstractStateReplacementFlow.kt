@@ -27,7 +27,7 @@ import net.corda.flows.AbstractStateReplacementFlow.Instigator
  * Finally, [Instigator] sends the transaction containing all signatures back to each participant so they can record it and
  * use the new updated state for future transactions.
  */
-abstract class AbstractStateReplacementFlow<T> {
+abstract class AbstractStateReplacementFlow {
     interface Proposal<out T> {
         val stateRef: StateRef
         val modification: T
@@ -38,9 +38,7 @@ abstract class AbstractStateReplacementFlow<T> {
                                                         val modification: T,
                                                         override val progressTracker: ProgressTracker = tracker()) : FlowLogic<StateAndRef<S>>() {
         companion object {
-
             object SIGNING : ProgressTracker.Step("Requesting signatures from other parties")
-
             object NOTARY : ProgressTracker.Step("Requesting notary signature")
 
             fun tracker() = ProgressTracker(SIGNING, NOTARY)
@@ -113,12 +111,9 @@ abstract class AbstractStateReplacementFlow<T> {
 
     abstract class Acceptor<T>(val otherSide: Party,
                                override val progressTracker: ProgressTracker = tracker()) : FlowLogic<Unit>() {
-
         companion object {
             object VERIFYING : ProgressTracker.Step("Verifying state replacement proposal")
-
             object APPROVING : ProgressTracker.Step("State replacement approved")
-
             object REJECTING : ProgressTracker.Step("State replacement rejected")
 
             fun tracker() = ProgressTracker(VERIFYING, APPROVING, REJECTING)
@@ -132,7 +127,7 @@ abstract class AbstractStateReplacementFlow<T> {
                 val stx: SignedTransaction = maybeProposal.unwrap { verifyProposal(maybeProposal).stx }
                 verifyTx(stx)
                 approve(stx)
-            } catch(e: Exception) {
+            } catch (e: Exception) {
                 // TODO: catch only specific exceptions. However, there are numerous validation exceptions
                 //       that might occur (tx validation/resolution, invalid proposal). Need to rethink how
                 //       we manage exceptions and maybe introduce some platform exception hierarchy
