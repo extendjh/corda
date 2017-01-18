@@ -5,6 +5,7 @@ import net.corda.contracts.asset.sumCashBy
 import net.corda.core.contracts.*
 import net.corda.core.crypto.*
 import net.corda.core.flows.FlowLogic
+import net.corda.core.flows.PropagatedException
 import net.corda.core.node.NodeInfo
 import net.corda.core.seconds
 import net.corda.core.transactions.SignedTransaction
@@ -42,8 +43,8 @@ import java.util.*
 // and [AbstractStateReplacementFlow].
 object TwoPartyTradeFlow {
 
-    class UnacceptablePriceException(val givenPrice: Amount<Currency>) : Exception("Unacceptable price: $givenPrice")
-    class AssetMismatchException(val expectedTypeName: String, val typeName: String) : Exception() {
+    class UnacceptablePriceException(givenPrice: Amount<Currency>) : PropagatedException("Unacceptable price: $givenPrice")
+    class AssetMismatchException(val expectedTypeName: String, val typeName: String) : PropagatedException() {
         override fun toString() = "The submitted asset didn't match the expected type: $expectedTypeName vs $typeName"
     }
 
@@ -66,13 +67,9 @@ object TwoPartyTradeFlow {
 
         companion object {
             object AWAITING_PROPOSAL : ProgressTracker.Step("Awaiting transaction proposal")
-
             object VERIFYING : ProgressTracker.Step("Verifying transaction proposal")
-
             object SIGNING : ProgressTracker.Step("Signing transaction")
-
             object NOTARY : ProgressTracker.Step("Getting notary signature")
-
             object SENDING_SIGS : ProgressTracker.Step("Sending transaction signatures to buyer")
 
             fun tracker() = ProgressTracker(AWAITING_PROPOSAL, VERIFYING, SIGNING, NOTARY, SENDING_SIGS)
@@ -118,8 +115,9 @@ object TwoPartyTradeFlow {
                 // even though it is missing signatures.
                 subFlow(ResolveTransactionsFlow(wtx, otherParty))
 
-                if (wtx.outputs.map { it.data }.sumCashBy(myPublicKey).withoutIssuer() != price)
-                    throw IllegalArgumentException("Transaction is not sending us the right amount of cash")
+                checkArgument(wtx.outputs.map { it.data }.sumCashBy(myPublicKey).withoutIssuer() == price) {
+                    "Transaction is not sending us the right amount of cash"
+                }
 
                 // There are all sorts of funny games a malicious secondary might play here, we should fix them:
                 //
@@ -159,11 +157,8 @@ object TwoPartyTradeFlow {
                      val typeToBuy: Class<out OwnableState>) : FlowLogic<SignedTransaction>() {
 
         object RECEIVING : ProgressTracker.Step("Waiting for seller trading info")
-
         object VERIFYING : ProgressTracker.Step("Verifying seller assets")
-
         object SIGNING : ProgressTracker.Step("Generating and signing transaction proposal")
-
         object SWAPPING_SIGNATURES : ProgressTracker.Step("Swapping signatures with the seller")
 
         override val progressTracker = ProgressTracker(RECEIVING, VERIFYING, SIGNING, SWAPPING_SIGNATURES)

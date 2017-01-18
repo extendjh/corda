@@ -43,7 +43,7 @@ abstract class AbstractStateReplacementFlow {
         }
 
         @Suspendable
-        @Throws(StateReplacementException::class, NotaryException::class)
+        @Throws(StateReplacementException::class)
         override fun call(): StateAndRef<S> {
             val (stx, participants) = assembleTx()
 
@@ -97,7 +97,11 @@ abstract class AbstractStateReplacementFlow {
         @Suspendable
         private fun getNotarySignature(stx: SignedTransaction): DigitalSignature.WithKey {
             progressTracker.currentStep = NOTARY
-            return subFlow(NotaryFlow.Client(stx))
+            try {
+                return subFlow(NotaryFlow.Client(stx))
+            } catch (e: NotaryException) {
+                throw StateReplacementException("Unable to notarise state change", e)
+            }
         }
     }
 

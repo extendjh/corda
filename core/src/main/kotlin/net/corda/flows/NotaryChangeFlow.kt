@@ -57,7 +57,8 @@ object NotaryChangeFlow : AbstractStateReplacementFlow() {
         private fun resolveEncumbrances(tx: TransactionBuilder): Iterable<CompositeKey> {
             val stateRef = originalState.ref
             val txId = stateRef.txhash
-            val issuingTx = serviceHub.storageService.validatedTransactions.getTransaction(txId) ?: throw IllegalStateException("Transaction $txId not found")
+            val issuingTx = serviceHub.storageService.validatedTransactions.getTransaction(txId)
+                    ?: throw StateReplacementException("Transaction $txId not found")
             val outputs = issuingTx.tx.outputs
 
             val participants = mutableSetOf<CompositeKey>()

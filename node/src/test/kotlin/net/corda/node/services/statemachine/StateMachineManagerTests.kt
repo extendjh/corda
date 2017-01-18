@@ -337,6 +337,9 @@ class StateMachineManagerTests {
                 .isThrownBy { future.getOrThrow() }
                 .withMessage("Nothing useful")
                 .withStackTraceContaining("ReceiveThenSuspendFlow")  // Make sure the stack trace is that of the receiving flow
+        databaseTransaction(node2.database) {
+            assertThat(node2.checkpointStorage.checkpoints()).isEmpty()
+        }
         assertSessionTransfers(
                 node1 sent sessionInit(ReceiveThenSuspendFlow::class) to node2,
                 node2 sent sessionConfirm to node1,

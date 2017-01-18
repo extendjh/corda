@@ -270,30 +270,44 @@ class StateMachineManager(val serviceHub: ServiceHubInternal,
     private fun onSessionInit(sessionInit: SessionInit, sender: Party) {
         logger.trace { "Received $sessionInit $sender" }
         val otherPartySessionId = sessionInit.initiatorSessionId
-        try {
-            val markerClass = Class.forName(sessionInit.flowName)
-            val flowFactory = serviceHub.getFlowFactory(markerClass)
-            if (flowFactory != null) {
-                val flow = flowFactory(sender)
-                val fiber = createFiber(flow)
-                val session = FlowSession(flow, random63BitValue(), FlowSessionState.Initiated(sender, otherPartySessionId))
-                if (sessionInit.firstPayload != null) {
-                    session.receivedMessages += ReceivedSessionMessage(sender, SessionData(session.ourSessionId, sessionInit.firstPayload))
-                }
-                openSessions[session.ourSessionId] = session
-                fiber.openSessions[Pair(flow, sender)] = session
-                updateCheckpoint(fiber)
-                sendSessionMessage(sender, SessionConfirm(otherPartySessionId, session.ourSessionId), fiber)
-                fiber.logger.debug { "Initiated from $sessionInit on $session" }
-                startFiber(fiber)
-            } else {
-                logger.warn("Unknown flow marker class in $sessionInit")
-                sendSessionMessage(sender, SessionReject(otherPartySessionId, "Don't know ${markerClass.name}"))
-            }
+
+        fun sendSessionReject(message: String) = sendSessionMessage(sender, SessionReject(otherPartySessionId, message))
+
+        val markerClass = try {
+            Class.forName(sessionInit.flowName)
         } catch (e: Exception) {
             logger.warn("Received invalid $sessionInit", e)
-            sendSessionMessage(sender, SessionReject(otherPartySessionId, "Unable to establish session"))
+            sendSessionReject("Don't know ${sessionInit.flowName}")
+            return
         }
+
+        val flowFactory = serviceHub.getFlowFactory(markerClass)
+        if (flowFactory == null) {
+            logger.warn("Unknown flow marker class in $sessionInit")
+            sendSessionReject("Don't know ${markerClass.name}")
+            return
+        }
+
+        val session = try {
+            val flow = flowFactory(sender)
+            val fiber = createFiber(flow)
+            val session = FlowSession(flow, random63BitValue(), FlowSessionState.Initiated(sender, otherPartySessionId))
+            if (sessionInit.firstPayload != null) {
+                session.receivedMessages += ReceivedSessionMessage(sender, SessionData(session.ourSessionId, sessionInit.firstPayload))
+            }
+            openSessions[session.ourSessionId] = session
+            fiber.openSessions[Pair(flow, sender)] = session
+            updateCheckpoint(fiber)
+            session
+        } catch (e: Exception) {
+            logger.warn("Couldn't start session for $sessionInit", e)
+            sendSessionReject("Unable to establish session")
+            return
+        }
+
+        sendSessionMessage(sender, SessionConfirm(otherPartySessionId, session.ourSessionId), session.fiber)
+        session.fiber.logger.debug { "Initiated from $sessionInit on $session" }
+        startFiber(session.fiber)
     }
 
     private fun serializeFiber(fiber: FlowStateMachineImpl<*>): SerializedBytes<FlowStateMachineImpl<*>> {

@@ -79,19 +79,18 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
     @Suspendable
     override fun run() {
         createTransaction()
-        var propagated: PropagatedException? = null
-        try {
-            val result = logic.call()
-            _resultFuture?.set(result)
-        } catch (e: PropagatedException) {
-            _resultFuture?.setException(e)
-            propagated = e
+        val result = try {
+            logic.call()
         } catch (t: Throwable) {
+            actionOnEnd(t as? PropagatedException)
             _resultFuture?.setException(t)
+            if (t is PropagatedException) return  // A PropagatedException is a valid response from a flow
             throw ExecutionException(t)
-        } finally {
-            actionOnEnd(propagated)
         }
+
+        // This is to prevent actionOnEnd being called twice if it throws an exception
+        actionOnEnd(null)
+        _resultFuture?.set(result)
     }
 
     private fun createTransaction() {

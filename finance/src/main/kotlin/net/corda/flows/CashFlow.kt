@@ -7,6 +7,7 @@ import net.corda.core.crypto.Party
 import net.corda.core.crypto.keys
 import net.corda.core.crypto.toStringShort
 import net.corda.core.flows.FlowLogic
+import net.corda.core.flows.PropagatedException
 import net.corda.core.serialization.OpaqueBytes
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
@@ -31,7 +32,7 @@ class CashFlow(val command: CashCommand, override val progressTracker: ProgressT
     }
 
     @Suspendable
-    @Throws(InsufficientBalanceException::class, NotaryException::class)
+    @Throws(CashException::class)
     override fun call(): SignedTransaction {
         return when (command) {
             is CashCommand.IssueCash -> issueCash(command)
@@ -46,11 +47,15 @@ class CashFlow(val command: CashCommand, override val progressTracker: ProgressT
         progressTracker.currentStep = PAYING
         val builder: TransactionBuilder = TransactionType.General.Builder(null)
         // TODO: Have some way of restricting this to states the caller controls
-        val (spendTX, keysForSigning) = serviceHub.vaultService.generateSpend(
-                builder,
-                req.amount.withoutIssuer(),
-                req.recipient.owningKey,
-                setOf(req.amount.token.issuer.party))
+        val (spendTX, keysForSigning) = try {
+            serviceHub.vaultService.generateSpend(
+                    builder,
+                    req.amount.withoutIssuer(),
+                    req.recipient.owningKey,
+                    setOf(req.amount.token.issuer.party))
+        } catch (e: InsufficientBalanceException) {
+            throw CashException("Insufficent cash for spend", e)
+        }
 
         keysForSigning.keys.forEach {
             val key = serviceHub.keyManagementService.keys[it] ?: throw IllegalStateException("Could not find signing key for ${it.toStringShort()}")
@@ -58,8 +63,7 @@ class CashFlow(val command: CashCommand, override val progressTracker: ProgressT
         }
 
         val tx = spendTX.toSignedTransaction(checkSufficientSignatures = false)
-        val flow = FinalityFlow(tx, setOf(req.recipient))
-        subFlow(flow)
+        finaliseTx(setOf(req.recipient), tx, "Unable to notarise spend")
         return tx
     }
 
@@ -68,10 +72,14 @@ class CashFlow(val command: CashCommand, override val progressTracker: ProgressT
         progressTracker.currentStep = EXITING
         val builder: TransactionBuilder = TransactionType.General.Builder(null)
         val issuer = serviceHub.myInfo.legalIdentity.ref(req.issueRef)
-        Cash().generateExit(
-                builder,
-                req.amount.issuedBy(issuer),
-                serviceHub.vaultService.currentVault.statesOfType<Cash.State>().filter { it.state.data.owner == issuer.party.owningKey })
+        try {
+            Cash().generateExit(
+                    builder,
+                    req.amount.issuedBy(issuer),
+                    serviceHub.vaultService.currentVault.statesOfType<Cash.State>().filter { it.state.data.owner == issuer.party.owningKey })
+        } catch (e: InsufficientBalanceException) {
+            throw CashException("Exiting more cash than exists", e)
+        }
         val myKey = serviceHub.legalIdentityKey
         builder.signWith(myKey)
 
@@ -80,7 +88,7 @@ class CashFlow(val command: CashCommand, override val progressTracker: ProgressT
         val inputStates = inputStatesNullable.values.filterNotNull().map { it.data }
         if (inputStatesNullable.size != inputStates.size) {
             val unresolvedStateRefs = inputStatesNullable.filter { it.value == null }.map { it.key }
-            throw InputStateRefResolveFailed(unresolvedStateRefs)
+            throw IllegalStateException("Failed to resolve input StateRefs: $unresolvedStateRefs")
         }
 
         // TODO: Is it safe to drop participants we don't know how to contact? Does not knowing how to contact them
@@ -93,10 +101,20 @@ class CashFlow(val command: CashCommand, override val progressTracker: ProgressT
 
         // Commit the transaction
         val tx = builder.toSignedTransaction(checkSufficientSignatures = false)
-        subFlow(FinalityFlow(tx, participants))
+        finaliseTx(participants, tx, "Unable to notarise exit")
         return tx
     }
 
+    @Suspendable
+    private fun finaliseTx(participants: Set<Party>, tx: SignedTransaction, message: String) {
+        try {
+            subFlow(FinalityFlow(tx, participants))
+        } catch (e: NotaryException) {
+            throw CashException(message, e)
+        }
+    }
+
+    // TODO This doesn't throw any exception so it might be worth splitting the three cash commands into separate flows
     @Suspendable
     private fun issueCash(req: CashCommand.IssueCash): SignedTransaction {
         progressTracker.currentStep = ISSUING
@@ -147,4 +165,4 @@ sealed class CashCommand {
     class ExitCash(val amount: Amount<Currency>, val issueRef: OpaqueBytes) : CashCommand()
 }
 
-class InputStateRefResolveFailed(stateRefs: List<StateRef>) : Exception("Failed to resolve input StateRefs $stateRefs")
+class CashException(message: String, cause: Throwable) : PropagatedException(message, cause)

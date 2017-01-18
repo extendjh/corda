@@ -27,7 +27,7 @@ object IssuerFlow {
     class IssuanceRequester(val amount: Amount<Currency>, val issueToParty: Party, val issueToPartyRef: OpaqueBytes,
                             val issuerBankParty: Party): FlowLogic<SignedTransaction>() {
         @Suspendable
-        @Throws(InsufficientBalanceException::class, NotaryException::class)
+        @Throws(CashException::class)
         override fun call(): SignedTransaction {
             val issueRequest = IssuanceRequestState(amount, issueToParty, issueToPartyRef)
             return sendAndReceive<SignedTransaction>(issuerBankParty, issueRequest).unwrap { it }
@@ -51,12 +51,12 @@ object IssuerFlow {
         override val progressTracker: ProgressTracker = tracker()
 
         @Suspendable
-        @Throws(InsufficientBalanceException::class, NotaryException::class)
+        @Throws(CashException::class)
         override fun call(): SignedTransaction {
             progressTracker.currentStep = AWAITING_REQUEST
             val issueRequest = receive<IssuanceRequestState>(otherParty).unwrap { it }
             // validate request inputs (for example, lets restrict the types of currency that can be issued)
-            require(issueRequest.amount.token in VALID_CURRENCIES) { "Currency must be one of $VALID_CURRENCIES" }
+            checkArgument(issueRequest.amount.token in VALID_CURRENCIES) { "Currency must be one of $VALID_CURRENCIES" }
             // TODO: parse request to determine Asset to issue
             val txn = issueCashTo(issueRequest.amount, issueRequest.issueToParty, issueRequest.issuerPartyRef)
             progressTracker.currentStep = SENDING_CONFIRM
@@ -75,25 +75,18 @@ object IssuerFlow {
             // invoke Cash subflow to issue Asset
             progressTracker.currentStep = ISSUING
             val bankOfCordaParty = serviceHub.myInfo.legalIdentity
-            try {
-                val issueCashFlow = CashFlow(CashCommand.IssueCash(amount, issuerPartyRef, bankOfCordaParty, notaryParty))
-                val issueTx = subFlow(issueCashFlow)
-                // NOTE: issueCashFlow performs a Broadcast (which stores a local copy of the txn to the ledger)
-                // short-circuit when issuing to self
-                if (issueTo == serviceHub.myInfo.legalIdentity)
-                    return issueTx
-                // now invoke Cash subflow to Move issued assetType to issue requester
-                progressTracker.currentStep = TRANSFERRING
-                val moveCashFlow = CashFlow(CashCommand.PayCash(amount.issuedBy(bankOfCordaParty.ref(issuerPartyRef)), issueTo))
-                val moveTx = subFlow(moveCashFlow)
-                // NOTE: CashFlow PayCash calls FinalityFlow which performs a Broadcast (which stores a local copy of the txn to the ledger)
-                return moveTx
-            }
-            // catch and report exception before throwing back to caller flow
-            catch (e: Exception) {
-                logger.error("Issuer Exception: failed for amount $amount issuedTo $issueTo with issuerPartyRef $issuerPartyRef")
-                throw e
-            }
+            val issueCashFlow = CashFlow(CashCommand.IssueCash(amount, issuerPartyRef, bankOfCordaParty, notaryParty))
+            val issueTx = subFlow(issueCashFlow)
+            // NOTE: issueCashFlow performs a Broadcast (which stores a local copy of the txn to the ledger)
+            // short-circuit when issuing to self
+            if (issueTo == serviceHub.myInfo.legalIdentity)
+                return issueTx
+            // now invoke Cash subflow to Move issued assetType to issue requester
+            progressTracker.currentStep = TRANSFERRING
+            val moveCashFlow = CashFlow(CashCommand.PayCash(amount.issuedBy(bankOfCordaParty.ref(issuerPartyRef)), issueTo))
+            val moveTx = subFlow(moveCashFlow)
+            // NOTE: CashFlow PayCash calls FinalityFlow which performs a Broadcast (which stores a local copy of the txn to the ledger)
+            return moveTx
         }
 
         class Service(services: PluginServiceHub) {
