@@ -27,7 +27,7 @@ import java.util.concurrent.ExecutionException
 
 class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
                               val logic: FlowLogic<R>,
-                              scheduler: FiberScheduler) : Fiber<R>("flow", scheduler), FlowStateMachine<R> {
+                              scheduler: FiberScheduler) : Fiber<Unit>("flow", scheduler), FlowStateMachine<R> {
     companion object {
         // Used to work around a small limitation in Quasar.
         private val QUASAR_UNBLOCKER = run {
@@ -77,26 +77,27 @@ class FlowStateMachineImpl<R>(override val id: StateMachineRunId,
     }
 
     @Suspendable
-    override fun run(): R {
+    override fun run() {
         createTransaction()
-        val result = try {
-            logic.call()
+        var propagated: PropagatedException? = null
+        try {
+            val result = logic.call()
+            _resultFuture?.set(result)
+        } catch (e: PropagatedException) {
+            _resultFuture?.setException(e)
+            propagated = e
         } catch (t: Throwable) {
-            actionOnEnd(t as? PropagatedException)
             _resultFuture?.setException(t)
             throw ExecutionException(t)
+        } finally {
+            actionOnEnd(propagated)
         }
-
-        // This is to prevent actionOnEnd being called twice if it throws an exception
-        actionOnEnd(null)
-        _resultFuture?.set(result)
-        return result
     }
 
     private fun createTransaction() {
         // Make sure we have a database transaction
         createDatabaseTransaction(database)
-        logger.trace { "Starting database transaction ${TransactionManager.currentOrNull()} on ${Strand.currentStrand()}." }
+        logger.trace { "Starting database transaction ${TransactionManager.currentOrNull()} on ${Strand.currentStrand()}" }
     }
 
     internal fun commitTransaction() {
